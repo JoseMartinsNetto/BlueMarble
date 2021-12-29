@@ -9,84 +9,126 @@
 const int Width = 800;
 const int Height = 600;
 
-int main() {
-
-	// Inicializa GLFW
-	assert(glfwInit() == GLFW_TRUE);
-
-	// Criar janela
-	GLFWwindow* Window = glfwCreateWindow(Width, Height, "Blue Marble", nullptr, nullptr);
-	assert(Window);
-
-	// Ativa o contexto na janela
-	glfwMakeContextCurrent(Window);
-
-	// Inicial OpenGL e GLEW
-	assert(glewInit() == GLEW_OK);
-
-	// Verificar a versao do OpenGL que estamos usando
-	GLint GLMajorVersion = 0;
-	GLint GLMinorVersion = 0;
-
-	glGetIntegerv(GL_MAJOR_VERSION, &GLMajorVersion);
-	glGetIntegerv(GL_MINOR_VERSION, &GLMinorVersion);
-
-	std::cout << "OpenGl Version: " << GLMajorVersion << "." << GLMinorVersion << std::endl;
-	std::cout << "OpenGl Version: " << GLMajorVersion << "." << GLMinorVersion << std::endl;
+void LogGLInfo() {
+	std::cout << "OpenGl Version: " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "OpenGl Vendor: " << glGetString(GL_VENDOR) << std::endl;
 	std::cout << "OpenGl Renderer: " << glGetString(GL_RENDERER) << std::endl;
 	std::cout << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
+}
 
-	// Definir um triangulo em cordenada normalizada
+static unsigned int CompileShader(unsigned int type, const std::string& source) {
+	unsigned int id = glCreateShader(type);
+	const char* src = source.c_str();
+
+	glShaderSource(id, 1, &src, nullptr);
+	glCompileShader(id);
+
+	int result;
+	glGetShaderiv(id, GL_COMPILE_STATUS, &result);
+
+	if (result == GL_FALSE) {
+		int lenght;
+		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &lenght);
+
+		char* message = (char*)alloca(lenght * sizeof(char));
+
+		glGetShaderInfoLog(id, lenght, &lenght, message);
+
+		std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") << " shader" << std::endl;
+		std::cout << message << std::endl;
+
+		glDeleteShader(id);
+
+		return 0;
+	}
+
+	return id;
+}
+
+static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader) {
+	unsigned int program = glCreateProgram();
+
+	unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
+	unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
+
+	glAttachShader(program, vs);
+	glAttachShader(program, fs);
+
+	glLinkProgram(program);
+	glValidateProgram(program);
+
+	glDeleteShader(vs);
+	glDeleteShader(fs);
+
+	return program;
+}
+
+int main() {
+
+	assert(glfwInit() == GLFW_TRUE);
+
+	GLFWwindow* Window = glfwCreateWindow(Width, Height, "Blue Marble", nullptr, nullptr);
+	assert(Window);
+
+	glfwMakeContextCurrent(Window);
+
+	assert(glewInit() == GLEW_OK);
+
+	LogGLInfo();
+
 	std::array<glm::vec3, 3> Triangle = {
-		glm::vec3{-1.0f, -1.0f, 0.0f },
-		glm::vec3{ 1.0f, -1.0f, 0.0f },
-		glm::vec3{ 0.0f, 1.0f, 0.0f }
+		glm::vec3{-0.5f, -0.5f, 0.0f },
+		glm::vec3{ 0.5f, -0.5f, 0.0f },
+		glm::vec3{ 0.0f, 0.5f, 0.0f }
 	};
 
-	// Copiar os vertices do triangulo para a memoria da GPU
-	// Pedir para o OpenGl gerar o identificador do vertexbuffer
-	GLuint VertexBuffer;
-	glGenBuffers(1, &VertexBuffer);
+	unsigned int buffer;
+	glGenBuffers(1, &buffer);
 
-	// Ativer o VertexBuffer como o buffer para onde ser'a copiado os dados do triangulo
-	glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer);
-
-	// copiar os dados para a mem'oria de v'ideo
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
+	glBindBuffer(GL_ARRAY_BUFFER, buffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(Triangle), Triangle.data(), GL_STATIC_DRAW);
 
-	// Definir cor de fundo
-	glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-	// Loop de eventos
+	std::string vertexShader =
+		"#version 330 core\n"
+		"\n"
+		"layout(location = 0) in vec4 position;\n"
+		"void main()\n"
+		"{\n"
+		"	gl_position = position;\n"
+		"}\n";
+
+	std::string fragmentShader =
+		"#version 330 core\n"
+		"\n"
+		"layout(location = 0) out vec4 color;\n"
+		"void main()\n"
+		"{\n"
+		"	color = vec4(1.0, 0.0, 0.0, 1.0);\n"
+		"}\n";
+
+	unsigned int shader = CreateShader(vertexShader, fragmentShader);
+
+	glUseProgram(shader);
+
+	glClearColor(0.0f, 0.5f, 1.0f, 1.0f);
+
 	while (!glfwWindowShouldClose(Window)) {
 
-		// Limpar o frameBuffer de cor
 		glClear(GL_COLOR_BUFFER_BIT);
 
-		// Ativar o vertexBuffer
-		glEnableVertexAttribArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer);
-		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
-
-		// desenhar o triangulo que estao no vertexBuffer
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
-		// Desativar os atributos antes ativados
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-		glDisableVertexAttribArray(0);
-
-		// Processa todos os eventos na fila
 		glfwPollEvents();
 
-		// Envia o conteudo do framebuffer da janela para ser desenhada
 		glfwSwapBuffers(Window);
 	}
 
-	// Desalocar o vertexbuffer
-	glDeleteBuffers(1, &VertexBuffer);
+	glDeleteBuffers(1, &buffer);
 
-	// Finaliza GLFW
 	glfwTerminate();
 
 	return 0;
