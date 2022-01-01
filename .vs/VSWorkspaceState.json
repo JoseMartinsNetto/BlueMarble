@@ -1,8 +1,9 @@
 {
   "ExpandedNodes": [
     "",
-    "\\out\\build"
+    "\\out\\build\\x64-Debug",
+    "\\shaders"
   ],
-  "SelectedNode": "\\main.cpp",
+  "SelectedNode": "\\shaders\\triangle_vert.glsl",
   "PreviewInSolutionExplorer": false
 }

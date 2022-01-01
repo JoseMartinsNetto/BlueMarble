@@ -1,22 +1,26 @@
 #include <iostream>
 #include <cassert>
 #include <array>
+#include <fstream>
 
 #include <GL/glew.h>
-#include<GLFW/glfw3.h>
+#include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
+#include <glm/ext.hpp>
 
 const int Width = 800;
 const int Height = 600;
 
-void LogGLInfo() {
+void LogGLInfo() 
+{
 	std::cout << "OpenGl Version: " << glGetString(GL_VERSION) << std::endl;
 	std::cout << "OpenGl Vendor: " << glGetString(GL_VENDOR) << std::endl;
 	std::cout << "OpenGl Renderer: " << glGetString(GL_RENDERER) << std::endl;
 	std::cout << "GLSL Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << std::endl;
 }
 
-static unsigned int CompileShader(unsigned int type, const std::string& source) {
+static unsigned int CompileShader(unsigned int type, const std::string& source)
+{
 	unsigned int id = glCreateShader(type);
 	const char* src = source.c_str();
 
@@ -45,7 +49,8 @@ static unsigned int CompileShader(unsigned int type, const std::string& source) 
 	return id;
 }
 
-static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader) {
+static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader)
+{
 	unsigned int program = glCreateProgram();
 
 	unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
@@ -63,8 +68,36 @@ static unsigned int CreateShader(const std::string& vertexShader, const std::str
 	return program;
 }
 
-int main() {
+std::string ReadFile(const char* FilePath)
+{
+	std::string FileContent;
+	if (std::ifstream FileStream{ FilePath, std::ios::in })
+	{
+		// Read content inside file content
+		FileContent.assign(std::istreambuf_iterator<char>(FileStream), std::istreambuf_iterator<char>());
+	}
 
+	return FileContent;
+}
+
+void LogString(std::string String)
+{
+	std::cout << String << std::endl;
+}
+
+void AttachShaders()
+{
+	std::string VertexShaderSource = ReadFile("shaders/triangle_vert.glsl");
+
+	std::string FragmentShaderSource = ReadFile("shaders/triangle_frag.glsl");
+
+	unsigned int shader = CreateShader(VertexShaderSource, FragmentShaderSource);
+
+	glUseProgram(shader);
+}
+
+int main()
+{
 	assert(glfwInit() == GLFW_TRUE);
 
 	GLFWwindow* Window = glfwCreateWindow(Width, Height, "Blue Marble", nullptr, nullptr);
@@ -77,42 +110,48 @@ int main() {
 	LogGLInfo();
 
 	std::array<glm::vec3, 3> Triangle = {
-		glm::vec3{-0.5f, -0.5f, 0.0f },
-		glm::vec3{ 0.5f, -0.5f, 0.0f },
-		glm::vec3{ 0.0f, 0.5f, 0.0f }
+		glm::vec3{-1.0f, -1.0f, 0.0f },
+		glm::vec3{ 1.0f, -1.0f, 0.0f },
+		glm::vec3{ 0.0f, 1.0f, 0.0f }
 	};
+
+	// Model Matrix
+	glm::mat4 ModelMatrix = glm::identity<glm::mat4>();
+
+	//View Matrix
+	glm::vec3 Eye{ 0, 0, 10 };
+	glm::vec3 Center{ 0, 0, 0 };
+	glm::vec3 Up{ 0, 1, 0 };
+	glm::mat4 ViewMatrix = glm::lookAt(Eye, Center, Up);
+
+	// Projection Matrix
+	constexpr float FoV = glm::radians(45.0f);
+	const float AspectRatio = Width / Height;
+	const float Near = 0.001f;
+	const float Far = 1000.0f;
+	glm::mat4 ProjectionMatrix = glm::perspective(FoV, AspectRatio, Near, Far);
+
+	// ModelViewProjection
+	glm::mat4 ModelViewProjection = ProjectionMatrix * ViewMatrix * ModelMatrix;
+
+	// Aply ModelViewProjection on Triangle Vertices
+	for (glm::vec3& Vertex : Triangle)
+	{
+		glm::vec4 ProjectedVertex = ModelViewProjection * glm::vec4{ Vertex, 1.0f };
+		ProjectedVertex /= ProjectedVertex.w;
+		Vertex = ProjectedVertex;
+	}
 
 	unsigned int buffer;
 	glGenBuffers(1, &buffer);
 
-	glBindBuffer(GL_ARRAY_BUFFER, buffer);
 	glBindBuffer(GL_ARRAY_BUFFER, buffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(Triangle), Triangle.data(), GL_STATIC_DRAW);
 
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-	std::string vertexShader =
-		"#version 330 core\n"
-		"\n"
-		"layout(location = 0) in vec4 position;\n"
-		"void main()\n"
-		"{\n"
-		"	gl_position = position;\n"
-		"}\n";
-
-	std::string fragmentShader =
-		"#version 330 core\n"
-		"\n"
-		"layout(location = 0) out vec4 color;\n"
-		"void main()\n"
-		"{\n"
-		"	color = vec4(1.0, 0.0, 0.0, 1.0);\n"
-		"}\n";
-
-	unsigned int shader = CreateShader(vertexShader, fragmentShader);
-
-	glUseProgram(shader);
+	AttachShaders();
 
 	glClearColor(0.0f, 0.5f, 1.0f, 1.0f);
 
